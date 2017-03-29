@@ -2,7 +2,7 @@ Copy hybrid iso image to USB device safely with `dd` tool. If the image is not h
 
 # Dependencies
 
-It depends on `isohybrid` (which depends on syslinux, syslinux-utils) if the image is already not hybrid.
+It depends on `isohybrid` (which depends on `syslinux`, `syslinux-utils`) if the image is already not hybrid.
 
 # Install
 
