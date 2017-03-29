@@ -2,13 +2,11 @@ Copy hybrid iso image to USB device safely with `dd` tool. If the image is not h
 
 # Dependencies
 
-if the image is already not hybrid, it tries to convert it to hybrid image, which depends on `isohybrid` (which further depends on `syslinux`, `syslinux-utils`) .
+if the image provided is not hybrid, it tries to convert it to hybrid image, which depends on `isohybrid` (which further depends on `syslinux`, `syslinux-utils`) .
 
 # Install
 
-You can just use it from the directory where it resides.
-
-If you want to install, then do
+You can use it from the directory where it resides, or you can install it with:
 
 ```bash
 sudo cp ./chibu.py /usr/bin/chibu
@@ -28,6 +26,7 @@ chibu iso_path usb_device [options]
 ```bash
     iso_path		Path to ISO image
     usb_device		USB device path (e.g. /dev/sdb)
+    -b, --block		Block size
     -h , --help		Show this help message
     -v, --version	Show version info
 ```

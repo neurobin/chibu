@@ -13,7 +13,8 @@ Synopsis: chibu iso_path usb_device [options]
 Arguments:
     iso_path		Path to ISO image
     usb_device		USB device path (e.g. /dev/sdb)
-    -h , --help		Show this help message
+    -b,	--block		Block size
+    -h, --help		Show this help message
     -v, --version	Show version info
 """
 from __future__ import print_function
