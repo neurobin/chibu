@@ -1,0 +1,183 @@
+#!/usr/bin/env python
+# This is a modified script of iso2usb.py written by Alon Swartz <alon@turnkeylinux.org>
+# Copyright (c) 2017 Md Jahidul Hamid <jahidulhamid@yahoo.com>
+#
+# Released under GPL-3
+"""
+****************************************
+**** Create Hybrid ISO Bootable USB ****
+**************** chibu *****************
+
+Synopsis: chibu iso_path usb_device [options]
+
+Arguments:
+    iso_path		Path to ISO image
+    usb_device		USB device path (e.g. /dev/sdb)
+    -h , --help		Show this help message
+    -v, --version	Show version info
+"""
+from __future__ import print_function
+pname = 'chibu'
+version = '1.0.0'
+author = 'Md Jahidul Hamid'
+bug_report_url = 'https://github.com/neurobin/chibu/issues'
+ver_info="""
+**** Create Hybrid ISO Bootable USB ****
+**************** chibu *****************
+Version:	""" + version + """
+Author:		""" + author + """
+Bug report:	""" + bug_report_url + """
+"""
+import os
+import sys
+import stat
+import getopt
+import subprocess as sbp
+
+try:
+    import __builtin__
+    input = getattr(__builtin__, 'raw_input')
+except (ImportError, AttributeError):
+    pass
+
+def err(e):
+	print("E: " + e, file=sys.stderr)
+
+def out(e):
+	print(e, file=sys.stdout)
+
+def fatal(e):
+    err(str(e))
+    sys.exit(1)
+
+def syscall(cmd, ignore_error=False):
+	try:
+		return sbp.check_output(cmd)
+	except sbp.CalledProcessError as e:
+		if not ignore_error:
+			raise
+
+def helpme(e=None):
+    if e:
+        err('E: ' + str(e))
+    cmd = os.path.basename(sys.argv[0])
+    out(__doc__.strip())
+    sys.exit(1)
+
+class Error(Exception):
+    pass
+
+class ISO:
+    def __init__(self, path):
+        self.path = os.path.realpath(path)
+        self.name = os.path.basename(self.path)
+
+        if not os.path.exists(self.path):
+            raise Error("iso path does not exist: %s" % self.path)
+
+    def mkhybrid(self):
+        syscall(["isohybrid '%s'", self.path])
+        if not self.is_hybrid:
+            raise Error("iso not verified as hybrid mode")
+
+    @property
+    def is_hybrid(self):
+        output = str(syscall(["fdisk", "-l", self.path]))
+        if "Hidden HPFS/NTFS" in output:
+            return True
+        if "Disk identifier: 0x00000000" in output:
+            return False
+        if "doesn't contain a valid partition table" in output:
+            return False
+        raise Error("unable to determine ISO hybrid status")
+
+
+class USB:
+	def __init__(self, path):
+		self.path = path
+		if not os.path.exists(self.path):
+		    raise Error("no such usb device: %s" % self.path)
+		if not self.is_blkdevice:
+		    raise Error("This is not a block device: %s (invalid usb)" % self.path)
+		if self.is_partition:
+		    raise Error("This seems to be a partition!!! : %s (invalid usb)" % self.path)
+		if not self.is_usbdev:
+		    raise Error("Could not verify if it's an USB device: %s (invalid usb)" % self.path)
+
+	@property
+	def is_blkdevice(self):
+		mode = os.stat(self.path).st_mode
+		return stat.S_ISBLK(mode)
+
+	@property
+	def is_partition(self):
+		try:
+		    int(self.path[-1])
+		    return True
+		except ValueError:
+		    return False
+
+	@property
+	def is_usbdev(self):
+		if "usb" in self.name:
+		    return True
+		return False
+
+	@property
+	def name(self):
+		cmd = ["udevadm", "info", "-q", "symlink", "-n", self.path]
+		output = str(syscall(cmd))
+		return output.split(" ")[0]
+
+	def write_iso(self, iso_path, bs):
+		out ("writing ISO to USB, this could take a while...")
+		#syscall(['umount', self.path], ignore_error=True)
+		cmd = ["dd", "if=%s" % iso_path, "of=%s" % self.path, "oflag=direct", "bs=%s" % bs]
+		syscall(cmd)
+		out ('done')
+
+def main():
+    try:
+        opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:hv', ['block=', 'help', 'version'])
+    except getopt.GetoptError as e:
+        helpme(e)
+    blksize = 1048576
+    for opt, val in opts:
+        if opt in ('-h', '--help'):
+            helpme()
+        elif opt in ('-v', '--version'):
+        	out (ver_info.strip())
+        	sys.exit(1)
+        elif opt in ('-b', '--block'):
+        	try:
+        		blksize = int(val)
+        	except ValueError as e:
+        		fatal('block size must be integer: %s' % blksize)
+    if not len(args) == 2:
+        helpme()
+    if os.geteuid() != 0:
+        fatal("root privileges are required")
+    try:
+        iso = ISO(args[0])
+        usb = USB(args[1])
+    except Error as e:
+        fatal(e)
+
+    out ("*" * 78)
+    out ("iso: %s (hybrid: %s)" % (iso.name, iso.is_hybrid))
+    out ("usb: %s (%s)" % (usb.name, usb.path))
+    out("block size: %s" % blksize)
+    out ("*" * 78)
+
+    cont = input("Is the above correct? (Y/n): ").strip()
+    if not cont.lower() == "y":
+        fatal("aborting...")
+    if not iso.is_hybrid:
+        out ("processing ISO for hybrid mode...")
+        iso.mkhybrid()
+    usb.write_iso(iso.path, blksize)
+
+
+if __name__ == '__main__':
+   main()
+
