@@ -14,12 +14,13 @@ Arguments:
     iso_path		Path to ISO image
     usb_device		USB device path (e.g. /dev/sdb)
     -b,	--block		Block size
+    -c, --conv		Convert to hybrid if not
     -h, --help		Show this help message
     -v, --version	Show version info
 """
 from __future__ import print_function
 pname = 'chibu'
-version = '1.0.0'
+version = '1.0.2'
 author = 'Md Jahidul Hamid'
 bug_report_url = 'https://github.com/neurobin/chibu/issues'
 ver_info="""
@@ -77,7 +78,7 @@ class ISO:
             raise Error("iso path does not exist: %s" % self.path)
 
     def mkhybrid(self):
-        syscall(["isohybrid '%s'", self.path])
+        syscall(["isohybrid", self.path])
         if not self.is_hybrid:
             raise Error("iso not verified as hybrid mode")
 
@@ -86,11 +87,7 @@ class ISO:
         output = str(syscall(["fdisk", "-l", self.path]))
         if "Hidden HPFS/NTFS" in output:
             return True
-        if "Disk identifier: 0x00000000" in output:
-            return False
-        if "doesn't contain a valid partition table" in output:
-            return False
-        raise Error("unable to determine ISO hybrid status")
+        return False
 
 
 class USB:
@@ -139,10 +136,11 @@ class USB:
 
 def main():
     try:
-        opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:hv', ['block=', 'help', 'version'])
+        opts, args = getopt.gnu_getopt(sys.argv[1:], 'b:hvc', ['block=', 'help', 'version','conv'])
     except getopt.GetoptError as e:
         helpme(e)
     blksize = 1048576
+    conv = False
     for opt, val in opts:
         if opt in ('-h', '--help'):
             helpme()
@@ -154,6 +152,8 @@ def main():
         		blksize = int(val)
         	except ValueError as e:
         		fatal('block size must be integer: %s' % blksize)
+        elif opt in ('-c', '--conv'):
+            conv = True
     if not len(args) == 2:
         helpme()
     if os.geteuid() != 0:
@@ -173,12 +173,15 @@ def main():
     cont = input("Is the above correct? (Y/n): ").strip()
     if not cont.lower() == "y":
         fatal("aborting...")
-    if not iso.is_hybrid:
+    if conv and not iso.is_hybrid:
         out ("processing ISO for hybrid mode...")
         iso.mkhybrid()
     usb.write_iso(iso.path, blksize)
 
 
 if __name__ == '__main__':
-   main()
+    try:
+        main()
+    except KeyboardInterrupt as e:
+        sys.stderr.write('\nInterrupted\n')
 
