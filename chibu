@@ -20,7 +20,7 @@ Arguments:
 """
 from __future__ import print_function
 pname = 'chibu'
-version = '1.0.2'
+version = '1.0.3'
 author = 'Md Jahidul Hamid'
 bug_report_url = 'https://github.com/neurobin/chibu/issues'
 ver_info="""
@@ -124,8 +124,11 @@ class USB:
 	@property
 	def name(self):
 		cmd = ["udevadm", "info", "-q", "symlink", "-n", self.path]
-		output = str(syscall(cmd))
-		return output.split(" ")[0]
+		output = str(syscall(cmd).decode('utf-8'))
+		for part in output.split(" "):
+			if 'by-id' in part or 'by-path' in part:
+				return part
+		return output
 
 	def write_iso(self, iso_path, bs):
 		out ("writing ISO to USB, this could take a while...")
